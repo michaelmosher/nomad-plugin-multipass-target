@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -192,19 +193,40 @@ func (t *TargetPlugin) scaleOut(namePrefix string, imageName string) error {
 	return nil
 }
 
-func (t *TargetPlugin) scaleIn(desiredCount int64, instances []*multipass.ListVMInstance) error {
-	t.logger.Debug("scaleUp", "desiredCount", desiredCount, "instanceCount", len(instances))
+func (t *TargetPlugin) scaleIn(
+	instances []*multipass.ListVMInstance,
+	delta int64,
+	config map[string]string,
+) error {
+	t.logger.Debug("scaleIn", "delta", delta)
 
-	for desiredCount > int64(len(instances)) {
-		i := instances[0]
-		instances = instances[1:]
+	multipassInstanceNames := make([]string, delta)
+	for i, instance := range instances {
+		multipassInstanceNames[i] = instance.GetName()
+	}
 
+	slices.Sort(multipassInstanceNames)
+	targeted := multipassInstanceNames[0:delta]
+
+	nodes, err := t.clusterUtils.RunPreScaleInTasksWithRemoteCheck(
+		context.Background(),
+		config,
+		targeted,
+		int(delta),
+	)
+	if err != nil {
+		return fmt.Errorf("clusterUtils.RunPreScaleInTasksWithRemoteCheck: %w", err)
+	}
+
+	for _, node := range nodes {
 		deleteStream, err := t.client.Delet(context.Background())
 		if err != nil {
 			return fmt.Errorf("client.Delet: %w", err)
 		}
 
-		target := &multipass.InstanceSnapshotPair{InstanceName: i.GetName()}
+		target := &multipass.InstanceSnapshotPair{
+			InstanceName: node.RemoteResourceID,
+		}
 		deleteStream.Send(&multipass.DeleteRequest{
 			InstanceSnapshotPairs: []*multipass.InstanceSnapshotPair{target},
 			Purge:                 true,
@@ -226,7 +248,9 @@ func (t *TargetPlugin) scaleIn(desiredCount int64, instances []*multipass.ListVM
 				break
 			}
 		}
-		t.logger.Debug("delete successful", "instanceName", i.GetName())
+		t.logger.Debug("delete successful",
+			"nomadId", node.NomadNodeID,
+			"multipassID", node.RemoteResourceID)
 	}
 
 	return nil

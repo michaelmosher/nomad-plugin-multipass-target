@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/nomad-autoscaler/plugins/base"
 	"github.com/hashicorp/nomad-autoscaler/plugins/target"
 	"github.com/hashicorp/nomad-autoscaler/sdk"
+	"github.com/hashicorp/nomad-autoscaler/sdk/helper/nomad"
+	"github.com/hashicorp/nomad-autoscaler/sdk/helper/scaleutils"
 
 	multipass "github.com/michaelmosher/nomad-plugin-multipass-target/pkg/multipass/client"
 )
@@ -29,6 +31,14 @@ var _ target.Target = (*TargetPlugin)(nil)
 type TargetPlugin struct {
 	logger hclog.Logger
 	client multipass.RpcClient
+
+	// clusterUtils provides general cluster scaling utilities for querying the
+	// state of nodes pools and performing scaling tasks.
+	clusterUtils *scaleutils.ClusterScaleUtils
+
+	// nodeIDAttribute is a Nomad Node attribute which contains the multipass
+	// instance name of the node.
+	nodeIDAttribute string
 }
 
 func NewTargetPlugin(log hclog.Logger) *TargetPlugin {
@@ -51,6 +61,17 @@ func (t *TargetPlugin) PluginInfo() (*base.PluginInfo, error) {
 // - https://developer.hashicorp.com/nomad/tools/autoscaling/agent
 func (t *TargetPlugin) SetConfig(config map[string]string) error {
 	t.logger.Debug("set config", "config", config)
+
+	clusterUtils, err := scaleutils.NewClusterScaleUtils(nomad.ConfigFromNamespacedMap(config), t.logger)
+	if err != nil {
+		return fmt.Errorf("scaleutils.NewClusterScaleUtils: %w", err)
+	}
+
+	t.clusterUtils = clusterUtils
+
+	// TODO: support this as a plugin config option?
+	t.nodeIDAttribute = "unique.hostname"
+	t.clusterUtils.ClusterNodeIDLookupFunc = t.multipassNodeIDMap
 
 	if err := validateConfig(config); err != nil {
 		return fmt.Errorf("validateConfig: %w", err)
@@ -114,7 +135,8 @@ func (t *TargetPlugin) Scale(action sdk.ScalingAction, config map[string]string)
 	}
 
 	if action.Direction == sdk.ScaleDirectionDown {
-		if err := t.scaleIn(action.Count, instances); err != nil {
+		delta := int64(len(instances)) - action.Count
+		if err := t.scaleIn(instances, delta, config); err != nil {
 			return fmt.Errorf("scaleIn: %w", err)
 		}
 	}
