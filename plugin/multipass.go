@@ -191,3 +191,43 @@ func (t *TargetPlugin) scaleOut(namePrefix string, imageName string) error {
 
 	return nil
 }
+
+func (t *TargetPlugin) scaleIn(desiredCount int64, instances []*multipass.ListVMInstance) error {
+	t.logger.Debug("scaleUp", "desiredCount", desiredCount, "instanceCount", len(instances))
+
+	for desiredCount > int64(len(instances)) {
+		i := instances[0]
+		instances = instances[1:]
+
+		deleteStream, err := t.client.Delet(context.Background())
+		if err != nil {
+			return fmt.Errorf("client.Delet: %w", err)
+		}
+
+		target := &multipass.InstanceSnapshotPair{InstanceName: i.GetName()}
+		deleteStream.Send(&multipass.DeleteRequest{
+			InstanceSnapshotPairs: []*multipass.InstanceSnapshotPair{target},
+			Purge:                 true,
+		})
+
+		// TODO: validate if this ever returns more than one message
+		deleteReply := multipass.DeleteReply{}
+		for {
+			err = deleteStream.RecvMsg(&deleteReply)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("deleteStream.RecvMsg: %w", err)
+			}
+
+			if msg := deleteReply.GetLogLine(); msg != "" {
+				t.logger.Debug(msg)
+			}
+
+			if err == io.EOF {
+				break
+			}
+		}
+		t.logger.Debug("delete successful", "instanceName", i.GetName())
+	}
+
+	return nil
+}

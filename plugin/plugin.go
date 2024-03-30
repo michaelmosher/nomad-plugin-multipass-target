@@ -114,7 +114,9 @@ func (t *TargetPlugin) Scale(action sdk.ScalingAction, config map[string]string)
 	}
 
 	if action.Direction == sdk.ScaleDirectionDown {
-		t.logger.Debug("scaleDown action not yet implemented")
+		if err := t.scaleIn(action.Count, instances); err != nil {
+			return fmt.Errorf("scaleIn: %w", err)
+		}
 	}
 
 	return nil
