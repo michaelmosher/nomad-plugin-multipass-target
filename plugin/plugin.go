@@ -61,6 +61,11 @@ func (t *TargetPlugin) SetConfig(config map[string]string) error {
 		return fmt.Errorf("setupClient: %w", err)
 	}
 
+	passphrase := config[configKeyPassphrase]
+	if err := t.authenticate(passphrase); err != nil {
+		return fmt.Errorf("authenticate: %w", err)
+	}
+
 	return nil
 }
 
