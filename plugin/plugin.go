@@ -79,6 +79,44 @@ func (t *TargetPlugin) SetConfig(config map[string]string) error {
 // - https://developer.hashicorp.com/nomad/tools/autoscaling/policy#target
 func (t *TargetPlugin) Scale(action sdk.ScalingAction, config map[string]string) error {
 	t.logger.Debug("received scale action", "count", action.Count, "reason", action.Reason)
+
+	namePrefix, ok := config[configKeyNamePrefix]
+	if !ok {
+		return fmt.Errorf("required config param %s not found", configKeyNamePrefix)
+	}
+
+	instances, err := t.getInstanceList(namePrefix)
+	if err != nil {
+		return fmt.Errorf("getInstanceList: %w", err)
+	}
+
+	if action.Direction == sdk.ScaleDirectionUp {
+		imageName, ok := config[configKeyImageName]
+		if !ok {
+			return fmt.Errorf("%s config param is required to scale up", configKeyImageName)
+		}
+
+		scaleOutCount := action.Count - int64(len(instances))
+		for scaleOutCount > 0 {
+			// Don't prematurely optimize: add instances one at a time
+			err := t.scaleOut(namePrefix, imageName)
+			if err != nil {
+				return fmt.Errorf("scaleUp(%s, %s): %w", namePrefix, imageName, err)
+			}
+
+			instances, err = t.getInstanceList(namePrefix)
+			if err != nil {
+				return fmt.Errorf("getInstanceList: %w", err)
+			}
+
+			scaleOutCount = action.Count - int64(len(instances))
+		}
+	}
+
+	if action.Direction == sdk.ScaleDirectionDown {
+		t.logger.Debug("scaleDown action not yet implemented")
+	}
+
 	return nil
 }
 
