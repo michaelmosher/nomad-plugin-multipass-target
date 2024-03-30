@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad-autoscaler/plugins/base"
@@ -93,18 +92,33 @@ func (t *TargetPlugin) Scale(action sdk.ScalingAction, config map[string]string)
 // - https://developer.hashicorp.com/nomad/tools/autoscaling/internals/plugins/target
 // - https://github.com/hashicorp/nomad-autoscaler/blob/v0.3.0/sdk/target.go#L6
 func (t *TargetPlugin) Status(config map[string]string) (*sdk.TargetStatus, error) {
-	var count int64
-	countStr := config["count"]
-	if countStr != "" {
-		count, _ = strconv.ParseInt(countStr, 10, 64)
+	// Note: config here is the options passed to the `target` block within a
+	// scaling policy – not the plugin config.
+	t.logger.Debug("Status", "config", config)
+
+	namePrefix, ok := config[configKeyNamePrefix]
+	if !ok {
+		return nil, fmt.Errorf("required config param %s not found", configKeyNamePrefix)
 	}
 
-	ready := !(config["ready"] == "false")
+	instances, err := t.getInstanceList(namePrefix)
+	if err != nil {
+		return nil, fmt.Errorf("getInstanceList: %w", err)
+	}
 
-	t.logger.Debug("received status request", "count", count, "ready", ready)
+	count := len(instances)
+	// How do we account for instances that aren't running? For now,
+	// let's just WARN about them.
+	for _, instance := range instances {
+		if instance.InstanceStatus.GetStatus() != multipass.InstanceStatus_RUNNING {
+			t.logger.Warn("Instance is counted, but not running", "instance", instance.GetName())
+		}
+	}
+
+	t.logger.Debug("received status request", "count", count)
 
 	return &sdk.TargetStatus{
-		Count: count,
-		Ready: ready,
+		Count: int64(count),
+		Ready: true,
 	}, nil
 }

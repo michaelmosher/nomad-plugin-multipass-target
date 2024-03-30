@@ -14,13 +14,16 @@ import (
 	multipass "github.com/michaelmosher/nomad-plugin-multipass-target/pkg/multipass/client"
 )
 
+// configKeys represents the known configuration parameters.
 const (
-	// configKeys represents the known configuration parameters required at
-	// varying points throughout the plugins lifecycle.
+	// plugin config keys
 	configKeyAddress        = "multipass_addr"
 	configKeyClientCertPath = "multipass_client_cert_path"
 	configKeyClientKeyPath  = "multipass_client_key_path"
 	configKeyPassphrase     = "multipass_passphrase"
+
+	// target scaling config keys
+	configKeyNamePrefix = "multipass_instance_name_prefix"
 )
 
 func validateConfig(config map[string]string) error {
@@ -116,5 +119,36 @@ func (t *TargetPlugin) authenticate(passphrase string) error {
 	}
 
 	return nil
+}
+
+func (t *TargetPlugin) getInstanceList(namePrefix string) ([]*multipass.ListVMInstance, error) {
+	t.logger.Debug("getInstanceList")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	listStream, err := t.client.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("client.List: %w", err)
+	}
+
+	listStream.Send(&multipass.ListRequest{
+		Snapshots: false,
+	})
+
+	listReply := multipass.ListReply{}
+	err = listStream.RecvMsg(&listReply)
+	if err != nil {
+		return nil, fmt.Errorf("listStream.RecvMsg: %w", err)
+	}
+
+	result := make([]*multipass.ListVMInstance, 0)
+	for _, instance := range listReply.GetInstanceList().GetInstances() {
+		name := instance.GetName()
+		if strings.HasPrefix(name, namePrefix) {
+			result = append(result, instance)
+		}
+	}
+	return result, nil
 }
 
