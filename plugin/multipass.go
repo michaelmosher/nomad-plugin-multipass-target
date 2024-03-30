@@ -26,6 +26,7 @@ const (
 	// target scaling config keys
 	configKeyNamePrefix = "multipass_instance_name_prefix"
 	configKeyImageName  = "multipass_instance_image_name"
+	// TODO: support user-data
 	// TODO: support non-default CPU/RAM/Disk configs
 )
 
@@ -155,40 +156,51 @@ func (t *TargetPlugin) getInstanceList(namePrefix string) ([]*multipass.ListVMIn
 	return result, nil
 }
 
-func (t *TargetPlugin) scaleOut(namePrefix string, imageName string) error {
-	t.logger.Debug("scaleUp", "namePrefix", namePrefix, "imageName", imageName)
+func (t *TargetPlugin) scaleOut(
+	delta int64,
+	config map[string]string,
+) error {
+	t.logger.Debug("scaleOut", "delta", delta)
 
-	launchStream, err := t.client.Launch(context.Background())
-	if err != nil {
-		return fmt.Errorf("client.Launch: %w", err)
+	namePrefix := config[configKeyNamePrefix]
+	imageName, ok := config[configKeyImageName]
+	if !ok {
+		return fmt.Errorf("%s config param is required to scale up", configKeyImageName)
 	}
 
-	now := time.Now()
-	// This will result in names that lexicographically sort oldest to newest.
-	nameSuffix := now.Format(fmt.Sprintf("%sT%s", time.DateOnly, "150405"))
-
-	launchStream.Send(&multipass.LaunchRequest{
-		InstanceName: namePrefix + "-" + nameSuffix,
-		Image:        imageName,
-	})
-	launchReply := multipass.LaunchReply{}
-
-	for {
-		err = launchStream.RecvMsg(&launchReply)
-		if err != nil && err != io.EOF {
-			return fmt.Errorf("launchStream.RecvMsg: %w", err)
+	for i := 0; i < int(delta); i++ {
+		launchStream, err := t.client.Launch(context.Background())
+		if err != nil {
+			return fmt.Errorf("client.Launch: %w", err)
 		}
 
-		if msg := launchReply.GetReplyMessage(); msg != "" {
-			t.logger.Debug(msg)
+		now := time.Now()
+		// This will result in names that lexicographically sort oldest to newest.
+		nameSuffix := now.Format(fmt.Sprintf("%sT%s", time.DateOnly, "150405"))
+
+		launchStream.Send(&multipass.LaunchRequest{
+			InstanceName: namePrefix + "-" + nameSuffix,
+			Image:        imageName,
+		})
+		launchReply := multipass.LaunchReply{}
+
+		for {
+			err = launchStream.RecvMsg(&launchReply)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("launchStream.RecvMsg: %w", err)
+			}
+
+			if msg := launchReply.GetReplyMessage(); msg != "" {
+				t.logger.Debug(msg)
+			}
+
+			if err == io.EOF {
+				break
+			}
 		}
 
-		if err == io.EOF {
-			break
-		}
+		t.logger.Debug("scaleUp successful", "name", launchReply.GetVmInstanceName())
 	}
-
-	t.logger.Debug("scaleUp successful", "name", launchReply.GetVmInstanceName())
 
 	return nil
 }

@@ -112,25 +112,9 @@ func (t *TargetPlugin) Scale(action sdk.ScalingAction, config map[string]string)
 	}
 
 	if action.Direction == sdk.ScaleDirectionUp {
-		imageName, ok := config[configKeyImageName]
-		if !ok {
-			return fmt.Errorf("%s config param is required to scale up", configKeyImageName)
-		}
-
-		scaleOutCount := action.Count - int64(len(instances))
-		for scaleOutCount > 0 {
-			// Don't prematurely optimize: add instances one at a time
-			err := t.scaleOut(namePrefix, imageName)
-			if err != nil {
-				return fmt.Errorf("scaleUp(%s, %s): %w", namePrefix, imageName, err)
-			}
-
-			instances, err = t.getInstanceList(namePrefix)
-			if err != nil {
-				return fmt.Errorf("getInstanceList: %w", err)
-			}
-
-			scaleOutCount = action.Count - int64(len(instances))
+		delta := action.Count - int64(len(instances))
+		if err := t.scaleOut(delta, config); err != nil {
+			return fmt.Errorf("scaleUp: %w", err)
 		}
 	}
 
