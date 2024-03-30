@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/hashicorp/go-hclog"
@@ -28,7 +29,7 @@ var _ target.Target = (*TargetPlugin)(nil)
 // TargetPlugin is the multipass implementation of the target.Target interface.
 type TargetPlugin struct {
 	logger hclog.Logger
-	client *multipass.RpcClient
+	client multipass.RpcClient
 }
 
 func NewTargetPlugin(log hclog.Logger) *TargetPlugin {
@@ -51,6 +52,15 @@ func (t *TargetPlugin) PluginInfo() (*base.PluginInfo, error) {
 // - https://developer.hashicorp.com/nomad/tools/autoscaling/agent
 func (t *TargetPlugin) SetConfig(config map[string]string) error {
 	t.logger.Debug("set config", "config", config)
+
+	if err := validateConfig(config); err != nil {
+		return fmt.Errorf("validateConfig: %w", err)
+	}
+
+	if err := t.setupClient(config); err != nil {
+		return fmt.Errorf("setupClient: %w", err)
+	}
+
 	return nil
 }
 
