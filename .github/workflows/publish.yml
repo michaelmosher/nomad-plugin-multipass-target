@@ -1,0 +1,47 @@
+name: Publish
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: "write"
+  
+jobs:
+  release:
+    name: "Create Release"
+    runs-on: "ubuntu-latest"
+    strategy:
+      matrix:
+        os: ["darwin", "linux"]
+        arch: ["amd64", "arm64"]
+        
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - uses: "actions/setup-go@v5"
+        with:
+          go-version-file: 'go.mod'
+          
+      - name: Build
+        env:
+          GOOS: "${{ matrix.os }}"
+          GOARCH: "${{ matrix.arch }}"
+        run: |
+          binaryName="${{github.repository}}-${GOOS}-${GOARCH}"
+          echo "binaryName=$binaryName" >> $GITHUB_ENV
+          go build -o "$binaryName" -v
+          
+      - name: Release Notes
+        run:
+          git log ${{github.event.base_ref}}..HEAD --pretty='format:* %h %s%n  * %an <%ae>' --no-merges >> "CHANGELOG.txt"
+          
+      - name: Release with Notes
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: "CHANGELOG.txt"
+          draft: true
+          files: ${{env.binaryName}}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
