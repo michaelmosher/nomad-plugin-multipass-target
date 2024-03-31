@@ -26,13 +26,13 @@ jobs:
 
       - name: Build
         env:
-          binary: "${{github.repository}}"
+          binary: "nomad-plugin-multipass-target"
           GOOS: "${{ matrix.os }}"
           GOARCH: "${{ matrix.arch }}"
         run: |
           go build -o "$binary" -v
 
-          archiveName="${{github.repository}}-${GOOS}-${GOARCH}.zip"
+          archiveName="${binary}-${GOOS}-${GOARCH}.zip"
           zip $archiveName "$binary"
 
           echo "archiveName=$archiveName" >> $GITHUB_ENV
