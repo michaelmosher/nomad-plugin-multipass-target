@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: "write"
-  
+
 jobs:
   release:
     name: "Create Release"
@@ -15,35 +15,39 @@ jobs:
       matrix:
         os: ["darwin", "linux"]
         arch: ["amd64", "arm64"]
-        
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - uses: "actions/setup-go@v5"
         with:
           go-version-file: 'go.mod'
-          
+
       - name: Build
         env:
+          binary: "${{github.repository}}"
           GOOS: "${{ matrix.os }}"
           GOARCH: "${{ matrix.arch }}"
         run: |
-          binaryName="${{github.repository}}-${GOOS}-${GOARCH}"
-          echo "binaryName=$binaryName" >> $GITHUB_ENV
-          go build -o "$binaryName" -v
-          
+          go build -o "$binary" -v
+
+          archiveName="${{github.repository}}-${GOOS}-${GOARCH}.zip"
+          zip $archiveName "$binary"
+
+          echo "archiveName=$archiveName" >> $GITHUB_ENV
+
       - name: Release Notes
         run: |
           git log ${{github.event.base_ref}}..HEAD --pretty='format:* %h %s%n  * %an <%ae>' --no-merges >> "CHANGELOG.txt"
           cat "CHANGELOG.txt"
-          
+
       - name: Release with Notes
         uses: softprops/action-gh-release@v2
         with:
           name: "v${{ github.run_number }}"
           body_path: "CHANGELOG.txt"
           draft: true
-          files: ${{env.binaryName}}
+          files: ${{env.archiveName}}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
