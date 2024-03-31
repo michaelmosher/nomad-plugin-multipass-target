@@ -37,7 +37,7 @@ func validateConfig(config map[string]string) error {
 		configKeyClientKeyPath,
 		configKeyPassphrase,
 	}
-	missingKeys := make([]string, len(requiredKeys))
+	missingKeys := make([]string, 0)
 
 	for _, key := range requiredKeys {
 		if _, ok := config[key]; !ok {
