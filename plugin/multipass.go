@@ -18,15 +18,15 @@ import (
 // configKeys represents the known configuration parameters.
 const (
 	// plugin config keys
-	configKeyAddress        = "multipass_addr"
-	configKeyClientCertPath = "multipass_client_cert_path"
-	configKeyClientKeyPath  = "multipass_client_key_path"
-	configKeyPassphrase     = "multipass_passphrase"
+	configKeyAddress        = "multipass_address"
+	configKeyClientCertPath = "client_cert_path"
+	configKeyClientKeyPath  = "client_key_path"
+	configKeyPassphrase     = "passphrase"
 
 	// target scaling config keys
-	configKeyNamePrefix = "multipass_instance_name_prefix"
-	configKeyImageName  = "multipass_instance_image_name"
 	// TODO: support user-data
+	configKeyNamePrefix = "instance_name_prefix"
+	configKeyImageName  = "instance_image_name"
 	// TODO: support non-default CPU/RAM/Disk configs
 )
 
