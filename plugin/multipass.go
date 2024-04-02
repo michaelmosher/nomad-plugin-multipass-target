@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -24,9 +25,9 @@ const (
 	configKeyPassphrase     = "passphrase"
 
 	// target scaling config keys
-	// TODO: support user-data
-	configKeyNamePrefix = "instance_name_prefix"
-	configKeyImageName  = "instance_image_name"
+	configKeyNamePrefix            = "instance_name_prefix"
+	configKeyImageName             = "instance_image_name"
+	configKeyCloudInitUserDataPath = "cloud_init_user_data_path"
 	// TODO: support non-default CPU/RAM/Disk configs
 )
 
@@ -168,6 +169,16 @@ func (t *TargetPlugin) scaleOut(
 		return fmt.Errorf("%s config param is required to scale up", configKeyImageName)
 	}
 
+	var userData string
+	if userDataPath, ok := config[configKeyCloudInitUserDataPath]; ok {
+		bytes, err := os.ReadFile(userDataPath)
+		if err != nil {
+			return fmt.Errorf("os.ReadFile(%s): %w", userDataPath, err)
+		}
+		// Additional safetys might be nice here – is this valid user-data?
+		userData = string(bytes)
+	}
+
 	for i := 0; i < int(delta); i++ {
 		launchStream, err := t.client.Launch(context.Background())
 		if err != nil {
@@ -179,8 +190,9 @@ func (t *TargetPlugin) scaleOut(
 		nameSuffix := now.Format(fmt.Sprintf("%sT%s", time.DateOnly, "150405"))
 
 		launchStream.Send(&multipass.LaunchRequest{
-			InstanceName: namePrefix + "-" + nameSuffix,
-			Image:        imageName,
+			InstanceName:      namePrefix + "-" + nameSuffix,
+			Image:             imageName,
+			CloudInitUserData: userData,
 		})
 		launchReply := multipass.LaunchReply{}
 
