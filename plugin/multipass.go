@@ -224,7 +224,7 @@ func (t *TargetPlugin) scaleIn(
 ) error {
 	t.logger.Debug("scaleIn", "delta", delta)
 
-	multipassInstanceNames := make([]string, delta)
+	multipassInstanceNames := make([]string, len(instances))
 	for i, instance := range instances {
 		multipassInstanceNames[i] = instance.GetName()
 	}
