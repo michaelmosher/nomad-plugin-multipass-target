@@ -24,7 +24,7 @@ const (
 	configKeyPassphrase     = "passphrase"
 
 	// target scaling config keys
-	configKeyNamePrefix            = "node_group"
+	configKeyNamePrefix            = "node_class"
 	configKeyImageName             = "instance_image_name"
 	configKeyCloudInitUserDataPath = "cloud_init_user_data_path"
 	// TODO: support non-default CPU/RAM/Disk configs
