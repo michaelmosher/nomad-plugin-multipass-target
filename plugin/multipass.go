@@ -24,7 +24,7 @@ const (
 	configKeyPassphrase     = "passphrase"
 
 	// target scaling config keys
-	configKeyNamePrefix            = "instance_name_prefix"
+	configKeyNamePrefix            = "node_group"
 	configKeyImageName             = "instance_image_name"
 	configKeyCloudInitUserDataPath = "cloud_init_user_data_path"
 	// TODO: support non-default CPU/RAM/Disk configs
@@ -186,6 +186,7 @@ func (t *TargetPlugin) scaleOut(
 
 		now := time.Now()
 		// This will result in names that lexicographically sort oldest to newest.
+		// TODO: ^this isn't really a relevant requirement anymore
 		nameSuffix := now.Format(fmt.Sprintf("%sT%s", time.DateOnly, "150405"))
 
 		launchStream.Send(&multipass.LaunchRequest{
