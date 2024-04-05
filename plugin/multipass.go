@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -229,13 +228,10 @@ func (t *TargetPlugin) scaleIn(
 		multipassInstanceNames[i] = instance.GetName()
 	}
 
-	slices.Sort(multipassInstanceNames)
-	targeted := multipassInstanceNames[0:delta]
-
 	nodes, err := t.clusterUtils.RunPreScaleInTasksWithRemoteCheck(
 		context.Background(),
 		config,
-		targeted,
+		multipassInstanceNames,
 		int(delta),
 	)
 	if err != nil {
